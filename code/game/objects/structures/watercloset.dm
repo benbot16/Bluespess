@@ -380,17 +380,17 @@
 	var/obj/item/reagent_containers/RG = attacking_item
 
 	if (istype(RG))
-		if(!usr.Adjacent(src)) return
-		if(RG.loc != usr && !isrobot(user)) return
+		if(!user.Adjacent(src)) return
+		if(!use_check_and_message(user, USE_FORCE_SRC_IN_USER)) return
 		if(busy)
-			to_chat(usr, SPAN_WARNING("Someone's already using \the [src]."))
+			to_chat(user, SPAN_WARNING("Someone's already using \the [src]."))
 			return
 		if(!(RG.is_open_container()))
-			to_chat(usr, SPAN_WARNING("The [RG.name]'s lid is on!"))
+			to_chat(user, SPAN_WARNING("The [RG.name]'s lid is on!"))
 			return
-		if (usr.a_intent == I_HELP)
+		if (user.a_intent == I_HELP)
 			if(RG.reagents.total_volume >= RG.volume)
-				to_chat(usr, SPAN_WARNING("\The [RG] is already full."))
+				to_chat(user, SPAN_WARNING("\The [RG] is already full."))
 				return
 
 			RG.reagents.add_reagent(/singleton/reagent/water, min(RG.volume - RG.reagents.total_volume, amount_per_transfer_from_this))
@@ -412,7 +412,7 @@
 				return
 		else
 			if(!RG.reagents.total_volume)
-				to_chat(usr, SPAN_WARNING("\The [RG] is already empty."))
+				to_chat(user, SPAN_WARNING("\The [RG] is already empty."))
 				return
 
 			var/empty_amount = RG.reagents.trans_to(src, RG.amount_per_transfer_from_this)

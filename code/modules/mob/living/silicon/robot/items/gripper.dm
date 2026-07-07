@@ -18,6 +18,7 @@
 		/obj/item/module/power_control,
 		/obj/item/stock_parts,
 		/obj/item/frame,
+		/obj/item/floor_frame,
 		/obj/item/camera_assembly,
 		/obj/item/tank,
 		/obj/item/circuitboard,
@@ -25,6 +26,7 @@
 		/obj/item/assembly,//Primarily for making improved cameras, but opens many possibilities
 		/obj/item/computer_hardware,
 		/obj/item/pipe,
+		/obj/item/paper,
 		/obj/item/smallDelivery,
 		/obj/item/gift,
 		/obj/item/fuel_assembly
@@ -35,6 +37,7 @@
 	var/obj/item/wrapped
 
 	var/force_holder
+	var/mutable_appearance/item_overlay
 
 /obj/item/gripper/examine(mob/user, distance, is_adjacent, infix, suffix, show_extended)
 	. = ..()
@@ -46,21 +49,28 @@
 	if(wrapped)
 		. += SPAN_NOTICE("It is holding \the [wrapped].")
 
-/proc/grippersafety(var/obj/item/gripper/G)
-	if(!G || !G.wrapped)//The object must have been lost
+/**
+ * Resets a gripper's force and icon after an item is dropped
+ */
+/obj/item/gripper/proc/grippersafety()
+	if(!wrapped) // We don't have an item
 		return FALSE
 	//The object left the gripper but it still exists. Maybe placed on a table
-	if(G.wrapped.loc != G)
+	if(wrapped.loc != src)
 		//Reset the force and then remove our reference to it
-		G.wrapped.force = G.force_holder
-		G.wrapped = null
-		G.force_holder = null
-		G.update_icon()
+		wrapped.force = force_holder
+		wrapped = null
+		force_holder = null
+		update_icon()
 		return FALSE
 	return TRUE
 
+/**
+ * Handles picking up an item using a gripper.
+ *
+ * Returns TRUE if we grabbed an item, FALSE otherwise.
+ */
 /obj/item/gripper/proc/grip_item(var/obj/item/I, var/mob/user, var/feedback = TRUE)
-	//This function returns 1 if we successfully took the item, or 0 if it was invalid. This information is useful to the caller
 	if(!wrapped)
 		if((can_hold && is_type_in_list(I, can_hold)) || (cant_hold && !is_type_in_list(I, cant_hold)))
 			if(I.anchored)
@@ -69,7 +79,7 @@
 			if(feedback)
 				to_chat(user, SPAN_NOTICE("You collect \the [I]."))
 			if(isturf(I.loc) && I.Adjacent(user))
-				I.do_pickup_animation(user)
+				I.pickup(user)
 			I.forceMove(src)
 			wrapped = I
 			wrapped.pixel_x = 0
@@ -83,15 +93,15 @@
 		to_chat(user, SPAN_WARNING("Your gripper is already holding \the [wrapped]."))
 	return FALSE
 
+/// Puts the item's sprite on our gripper so the borg can keep track of what they're carrying
 /obj/item/gripper/update_icon()
-	underlays.Cut()
-	grippersafety(src)
+	CutOverlays(item_overlay)
+	if(grippersafety())
+		return
 	if(wrapped)
-		var/mutable_appearance/MA = new (wrapped)
-		MA.pixel_y = -8
-		MA.plane = src.plane
-		MA.layer = FLOAT_LAYER
-		underlays += MA
+		item_overlay = new(wrapped)
+		item_overlay.pixel_y = -8
+		AddOverlays(item_overlay)
 
 
 /obj/item/gripper/attack_self(mob/user)
@@ -140,6 +150,7 @@
 			if(force_holder)
 				wrapped.force = force_holder
 			wrapped.forceMove(target)
+			wrapped.reset_plane_and_layer()
 			wrapped.dropped(user)
 			force_holder = null
 		if(feedback)
@@ -169,7 +180,7 @@
 			if(I_HELP)
 				user.visible_message("\The [user] [pick("boops", "squeezes", "pokes", "prods", "strokes", "bonks")] \the [target_mob] with \the [src]")
 			if(I_HURT)
-				target_mob.attack_generic(user, user.mob_size, "crushed")//about 16 dmg for a cyborg
+				target_mob.attack_generic(user, user.mob_size * 1.5, "crushed")//about 16 dmg for a cyborg
 				//Attack generic does a visible message so we dont need one here
 				user.setClickCooldown(DEFAULT_ATTACK_COOLDOWN * 3)
 				playsound(user, 'sound/effects/attackblob.ogg', 60, 1)
@@ -195,28 +206,32 @@
 	return resolved
 
 /obj/item/gripper/afterattack(var/atom/target, var/mob/living/user, proximity, params)
-	if(!proximity)
-		return
-	if(wrapped) //Already have an item.
-		wrapped.afterattack(target, user, TRUE, params)
+ 	// If we already have an item, we run its afterattack
+	if(wrapped)
+		wrapped.afterattack(target, user, proximity, params)
+		grippersafety()
 		if(QDELETED(wrapped))
 			drop(get_turf(src), user, FALSE)
-	else if(istype(target, /obj/item/storage) && !istype(target, /obj/item/storage/pill_bottle) && !istype(target, /obj/item/storage/secure))
+		return
+	// Next bits require proximity, so bail out if we don't have it
+	if(!proximity)
+		return
+	// No item, check if we're grabbing from storage
+	if(istype(target, /obj/item/storage) && !istype(target, /obj/item/storage/pill_bottle) && !istype(target, /obj/item/storage/secure))
 		for(var/obj/item/C in target)
 			if(grip_item(C, user, FALSE))
 				to_chat(user, SPAN_NOTICE("You grab \the [C] from inside \the [target.name]."))
 				return
 		to_chat(user, SPAN_NOTICE("There is nothing inside the box that your gripper can collect."))
 		return
-	else if(istype(target, /obj/item)) //Check that we're not pocketing a mob.
-		//...and that the item is not in a container.
+	// Still no item, see if we can pick up our target
+	if(istype(target, /obj/item))
+		// Make sure it's not in a container since that should be handled above.
 		if(!isturf(target.loc))
 			return
 		grip_item(target, user)
-	else if (istype(target, /obj/structure/machinery/mining)) // to prevent them from activating it by accident
 		return
-	else
-		target.attack_ai(user)
+	target.attack_ai(user)
 
 /obj/item/gripper/resolve_attackby(atom/A, mob/user, var/click_parameters)
 	if(wrapped)
@@ -240,6 +255,7 @@
 		/obj/item/custom_ka_upgrade,
 		/obj/item/warp_core,
 		/obj/item/extraction_pack,
+		/obj/item/paper,
 		/obj/item/smallDelivery,
 		/obj/item/gift,
 		/obj/item/mine_bot_upgrade
@@ -305,7 +321,8 @@
 		/obj/item/remote_mecha,
 		/obj/item/smallDelivery,
 		/obj/item/gift,
-		/obj/item/integrated_circuit_printer
+		/obj/item/integrated_circuit_printer,
+		/obj/item/deployable_kit/remote_mech
 		)
 
 /obj/item/gripper/chemistry //A gripper designed for chemistry, to allow borgs to work efficiently in the lab
@@ -329,6 +346,8 @@
 		/obj/item/stack/material/phoron,
 		/obj/item/reagent_containers/blood,
 		/obj/item/reagent_containers/food/drinks/sillycup,
+		/obj/item/clothing/mask/breath,
+		/obj/item/tank,
 		/obj/item/smallDelivery,
 		/obj/item/gift,
 		/obj/item/reagent_containers/chem_disp_cartridge

@@ -1,8 +1,11 @@
 //These procs handle putting s tuff in your hand. It's probably best to use these rather than setting stuff manually
 //as they handle all relevant stuff like adding it to the player's screen and such
 
-//Returns the thing in our active hand (whatever is in our active module-slot, in this case)
+/// Returns the robot's active module. If the active module is a gripper (robohand), return the held item instead.
 /mob/living/silicon/robot/get_active_hand()
+	if(istype(module_active, /obj/item/gripper))
+		var/obj/item/gripper/gripper = module_active
+		return gripper.wrapped
 	return module_active
 
 /mob/living/silicon/robot/proc/return_wirecutter()

@@ -48,9 +48,8 @@
 		return
 	if(A == loc)	// if placing the labeller into something (e.g. backpack)
 		return		// don't set a label
-	if(loc != user)
+	if(!use_check_and_message(user, USE_FORCE_SRC_IN_USER))
 		return
-
 	if(!labels_left)
 		to_chat(user, SPAN_NOTICE("No labels left."))
 		return
