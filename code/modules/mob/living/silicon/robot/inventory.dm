@@ -5,7 +5,7 @@
 /mob/living/silicon/robot/get_active_hand()
 	if(istype(module_active, /obj/item/gripper))
 		var/obj/item/gripper/gripper = module_active
-		return gripper.wrapped
+		return gripper.wrapped ? gripper.wrapped : module_active
 	return module_active
 
 /mob/living/silicon/robot/proc/return_wirecutter()

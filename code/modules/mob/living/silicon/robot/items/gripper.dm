@@ -185,7 +185,6 @@
 				user.setClickCooldown(DEFAULT_ATTACK_COOLDOWN * 3)
 				playsound(user, 'sound/effects/attackblob.ogg', 60, 1)
 				//Slow,powerful attack for borgs. No spamclicking
-
 	return FALSE
 
 /obj/item/gripper/attackby(obj/item/attacking_item, mob/user)
