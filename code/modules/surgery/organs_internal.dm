@@ -156,6 +156,7 @@
 				user.visible_message("<b>[user]</b> repairs [target]'s [I.name] with [tool].", \
 					SPAN_NOTICE("You repair [target]'s [I.name] with [tool].") )
 				I.surgical_fix(user)
+				START_PROCESSING(SSprocessing, I)
 				if(istype(tool, /obj/item/stack/nanopaste))
 					var/obj/item/stack/nanopaste/nanopaste = tool
 					nanopaste.use(1)
@@ -339,7 +340,7 @@
 		return FALSE
 	else if(target.species.has_organ[O.organ_tag] || O.is_augment)
 
-		if(O.damage > (O.max_damage * 0.75))
+		if(O.get_damage() > (O.max_damage * 0.75))
 			to_chat(user, SPAN_WARNING("\The [O.organ_tag] [o_is] in no state to be transplanted."))
 			return SURGERY_FAILURE
 
