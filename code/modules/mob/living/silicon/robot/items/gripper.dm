@@ -7,8 +7,9 @@
 	icon_state = "gripper"
 
 	item_flags = ITEM_FLAG_NO_BLUDGEON
+	force = 18 // Crowbar strength
 
-	//Has a list of items that it can hold.
+	/// A whitelist of held items. If cant_hold is undefined, items not in this list can't be picked up. If defined, this list overrides definitions there.
 	var/list/can_hold = list(
 		/obj/item/cell,
 		/obj/item/firealarm_electronics,
@@ -23,7 +24,8 @@
 		/obj/item/tank,
 		/obj/item/circuitboard,
 		/obj/item/smes_coil,
-		/obj/item/assembly,//Primarily for making improved cameras, but opens many possibilities
+		/obj/item/assembly,
+		/obj/item/assembly_holder,
 		/obj/item/computer_hardware,
 		/obj/item/pipe,
 		/obj/item/paper,
@@ -32,6 +34,7 @@
 		/obj/item/fuel_assembly
 		)
 
+	/// A blacklist of held items. Allows all unlisted items to be picked up if defined. Listed items/subtypes can be overridden using can_hold.
 	var/list/cant_hold
 
 	var/obj/item/wrapped
@@ -50,15 +53,20 @@
 		. += SPAN_NOTICE("It is holding \the [wrapped].")
 
 /**
- * Resets a gripper's force and icon after an item is dropped
+ * Resets a gripper's force and icon if an item is dropped or otherwise moved from the gripper.
+ * Returns TRUE if the object is still in the gripper.
+ * Returns FALSE if the object has left the gripper or doesn't exist anymore.
  */
 /obj/item/gripper/proc/grippersafety()
-	if(!wrapped) // We don't have an item
+	SIGNAL_HANDLER
+	// We don't have an item
+	if(!wrapped)
 		return FALSE
 	//The object left the gripper but it still exists. Maybe placed on a table
 	if(wrapped.loc != src)
 		//Reset the force and then remove our reference to it
 		wrapped.force = force_holder
+		UnregisterSignal(wrapped, COMSIG_MOVABLE_MOVED)
 		wrapped = null
 		force_holder = null
 		update_icon()
@@ -68,26 +76,32 @@
 /**
  * Handles picking up an item using a gripper.
  *
- * Returns TRUE if we grabbed an item, FALSE otherwise.
+ * Returns TRUE if we grabbed an item.
+ * Returns FALSE if we couldn't grab an item.
  */
-/obj/item/gripper/proc/grip_item(var/obj/item/I, var/mob/user, var/feedback = TRUE)
+/obj/item/gripper/proc/grip_item(var/obj/item/target, var/mob/user, var/feedback = TRUE)
 	if(!wrapped)
-		if((can_hold && is_type_in_list(I, can_hold)) || (cant_hold && !is_type_in_list(I, cant_hold)))
-			if(I.anchored)
-				to_chat(user, SPAN_WARNING("\The [I] is anchored down!"))
+		if((can_hold && is_type_in_list(target, can_hold)) || (cant_hold && !is_type_in_list(target, cant_hold)))
+			if(target.anchored)
+				to_chat(user, SPAN_WARNING("\The [target] is anchored down!"))
 				return FALSE
 			if(feedback)
-				to_chat(user, SPAN_NOTICE("You collect \the [I]."))
-			if(isturf(I.loc) && I.Adjacent(user))
-				I.pickup(user)
-			I.forceMove(src)
-			wrapped = I
+				to_chat(user, SPAN_NOTICE("You collect \the [target]."))
+			if(isturf(target.loc) && target.Adjacent(user))
+				target.pickup(user)
+			if(istype(target.loc, /obj/item/storage))
+				var/obj/item/storage/our_container = target.loc
+				our_container.remove_from_storage(target, src)
+			else
+				target.forceMove(src)
+			wrapped = target
+			RegisterSignal(wrapped, COMSIG_MOVABLE_MOVED, PROC_REF(grippersafety))
 			wrapped.pixel_x = 0
 			wrapped.pixel_y = 0
 			update_icon()
 			return TRUE
 		if(feedback)
-			to_chat(user, SPAN_WARNING("Your gripper cannot hold \the [I]."))
+			to_chat(user, SPAN_WARNING("Your gripper cannot hold \the [target]."))
 		return FALSE
 	if(feedback)
 		to_chat(user, SPAN_WARNING("Your gripper is already holding \the [wrapped]."))
@@ -96,13 +110,12 @@
 /// Puts the item's sprite on our gripper so the borg can keep track of what they're carrying
 /obj/item/gripper/update_icon()
 	CutOverlays(item_overlay)
-	if(grippersafety())
+	if(QDELETED(wrapped) || wrapped.loc != src)
 		return
 	if(wrapped)
 		item_overlay = new(wrapped)
 		item_overlay.pixel_y = -8
 		AddOverlays(item_overlay)
-
 
 /obj/item/gripper/attack_self(mob/user)
 	if(wrapped)
@@ -146,15 +159,16 @@
 
 
 	if(wrapped)
-		if(wrapped.loc == src)
-			if(force_holder)
-				wrapped.force = force_holder
-			wrapped.forceMove(target)
-			wrapped.reset_plane_and_layer()
-			wrapped.dropped(user)
-			force_holder = null
+		if(wrapped.loc != src)
+			return
+		if(force_holder)
+			wrapped.force = force_holder
+		wrapped.forceMove(target)
+		wrapped.dropped(user)
+		UnregisterSignal(wrapped, COMSIG_MOVABLE_MOVED)
+		force_holder = null
 		if(feedback)
-			to_chat(loc, SPAN_NOTICE("You release \the [wrapped].")) // loc will always be the cyborg
+			to_chat(user, SPAN_NOTICE("You release \the [wrapped]."))
 
 	wrapped = null
 	update_icon()
@@ -180,7 +194,7 @@
 			if(I_HELP)
 				user.visible_message("\The [user] [pick("boops", "squeezes", "pokes", "prods", "strokes", "bonks")] \the [target_mob] with \the [src]")
 			if(I_HURT)
-				target_mob.attack_generic(user, user.mob_size * 1.5, "crushed")//about 16 dmg for a cyborg
+				target_mob.attack_generic(user, user.mob_size * 1.5, "crushed")
 				//Attack generic does a visible message so we dont need one here
 				user.setClickCooldown(DEFAULT_ATTACK_COOLDOWN * 3)
 				playsound(user, 'sound/effects/attackblob.ogg', 60, 1)
@@ -241,8 +255,9 @@
 /*
 	//Definitions of gripper subtypes
 */
-
-// VEEEEERY limited version for mining borgs. Basically only for swapping cells, upgrading the drills, and upgrading custom KAs.
+/**
+* A limited gripper used by mining borgs. Basically only for swapping cells, upgrading drills, and upgrading custom KAs.
+*/
 /obj/item/gripper/miner
 	name = "drill maintenance gripper"
 	desc = "A simple grasping tool for the maintenance and upgrade of heavy drilling machines."
@@ -283,7 +298,10 @@
 		/obj/item/photo
 		)
 
-/obj/item/gripper/research // A general usage gripper, used for toxins/robotics/xenobio/etc
+/**
+ * A general-purpose gripper for research borgs. Allows them to interact with toxins/xenobio/xenoarch/robotics/etc.
+ */
+/obj/item/gripper/research
 	name = "scientific gripper"
 	icon_state = "gripper-sci"
 	desc = "A simple grasping tool suited to assist in a wide array of research applications."
@@ -307,7 +325,8 @@
 		/obj/item/reagent_containers/food/snacks/monkeycube,
 		/obj/item/seeds, // To be able to plant things for Xenobotany
 		/obj/item/grown, // To be able to plant things for Xenobotany
-		/obj/item/assembly, // For building bots and similar complex R&D devices
+		/obj/item/assembly,
+		/obj/item/assembly_holder,
 		/obj/item/healthanalyzer,// For building medibots
 		/obj/item/disk,
 		/obj/item/analyzer/plant_analyzer,//For farmbot construction
@@ -324,7 +343,10 @@
 		/obj/item/deployable_kit/remote_mech
 		)
 
-/obj/item/gripper/chemistry //A gripper designed for chemistry, to allow borgs to work efficiently in the lab
+/**
+ * A gripper designed to manipulate pharmaceutical and medical items.
+ */
+/obj/item/gripper/chemistry
 	name = "medical gripper"
 	icon_state = "gripper-sci"
 	desc = "A specialised grasping tool designed for working in medical treatment facilities and pharmaceutical labs."
@@ -352,7 +374,10 @@
 		/obj/item/reagent_containers/chem_disp_cartridge
 		)
 
-/obj/item/gripper/service //Used to handle food, drinks, and seeds.
+/**
+ * Used to handle food, drinks, and seeds.
+ */
+/obj/item/gripper/service
 	name = "service gripper"
 	icon_state = "gripper"
 	desc = "A simple grasping tool used to perform tasks in the service sector, such as handling food, drinks, and seeds."
@@ -373,12 +398,18 @@
 		/obj/item/reagent_containers/chem_disp_cartridge //Drink cartridges
 		)
 
-/obj/item/gripper/no_use //Used when you want to hold and put items in other things, but not able to 'use' the item
+/**
+ * Used when you want to hold and put items in other things, but not able to 'use' the item
+ */
+/obj/item/gripper/no_use
 
 /obj/item/gripper/no_use/attack_self(mob/user)
 	return
 
-/obj/item/gripper/no_use/loader //This is used to disallow building with metal.
+/**
+ * A gripper subtype used to disallow building with sheets.
+ */
+/obj/item/gripper/no_use/loader
 	name = "sheet holder"
 	desc = "A specialized holding device, designed to hold sheets of material or tiling."
 	icon_state = "gripper-sheet"
@@ -388,6 +419,9 @@
 		/obj/item/stack/tile
 		)
 
+/**
+ * A general-purpose gripper used by maintenance drones.
+ */
 /obj/item/gripper/multi_purpose
 	name = "multi-purpose gripper"
 	desc = "An articulate gripper suited to carrying a wide variety of objects you could encounter on a space-faring vessel."
@@ -400,3 +434,12 @@
 		/obj/item/modular_computer,
 		/obj/item/card/id
 	)
+
+/**
+ * Debug gripper for bluespace borgs
+ */
+/obj/item/gripper/debug
+	name = "articulated gripper"
+	desc = "A complex articulated gripper. Essentially just a hand."
+	can_hold = null
+	cant_hold = list()

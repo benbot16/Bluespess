@@ -1220,7 +1220,8 @@ GLOBAL_LIST_INIT(robot_modules, list(
 	modules += new /obj/item/borg/combat/shield(src)
 	modules += new /obj/item/borg/combat/mobility(src)
 	// BST
-	modules += new/obj/item/card/id/bst(src)
+	modules += new /obj/item/card/id/bst(src)
+	modules += new /obj/item/gripper/debug(src)
 
 	var/datum/matter_synth/metal = new /datum/matter_synth/metal(60000)
 	var/datum/matter_synth/glass = new /datum/matter_synth/glass(40000)

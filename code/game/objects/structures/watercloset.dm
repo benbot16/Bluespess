@@ -381,7 +381,7 @@
 
 	if (istype(RG))
 		if(!user.Adjacent(src)) return
-		if(!use_check_and_message(user, USE_FORCE_SRC_IN_USER)) return
+		if(!RG.use_check_and_message(user, USE_FORCE_SRC_IN_USER)) return
 		if(busy)
 			to_chat(user, SPAN_WARNING("Someone's already using \the [src]."))
 			return
