@@ -85,10 +85,12 @@
 			if(target.anchored)
 				to_chat(user, SPAN_WARNING("\The [target] is anchored down!"))
 				return FALSE
+			if(!target.Adjacent(user))
+				to_chat(user, SPAN_WARNING("\The [target] is too far away!"))
+				return FALSE
 			if(feedback)
 				to_chat(user, SPAN_NOTICE("You collect \the [target]."))
-			if(isturf(target.loc) && target.Adjacent(user))
-				target.pickup(user)
+			target.pickup(user)
 			if(istype(target.loc, /obj/item/storage))
 				var/obj/item/storage/our_container = target.loc
 				our_container.remove_from_storage(target, src)
@@ -163,9 +165,9 @@
 			return
 		if(force_holder)
 			wrapped.force = force_holder
+		UnregisterSignal(wrapped, COMSIG_MOVABLE_MOVED)
 		wrapped.forceMove(target)
 		wrapped.dropped(user)
-		UnregisterSignal(wrapped, COMSIG_MOVABLE_MOVED)
 		force_holder = null
 		if(feedback)
 			to_chat(user, SPAN_NOTICE("You release \the [wrapped]."))
@@ -207,6 +209,7 @@
 	if(wrapped)
 		if(attacking_item == wrapped)
 			attack_self(user) //Allows gripper to be clicked to use item.
+			update_icon()
 			return TRUE
 
 		resolved = wrapped.attackby(attacking_item,user)
@@ -229,19 +232,8 @@
 	// Next bits require proximity, so bail out if we don't have it
 	if(!proximity)
 		return
-	// No item, check if we're grabbing from storage
-	if(istype(target, /obj/item/storage) && !istype(target, /obj/item/storage/pill_bottle) && !istype(target, /obj/item/storage/secure))
-		for(var/obj/item/C in target)
-			if(grip_item(C, user, FALSE))
-				to_chat(user, SPAN_NOTICE("You grab \the [C] from inside \the [target.name]."))
-				return
-		to_chat(user, SPAN_NOTICE("There is nothing inside the box that your gripper can collect."))
-		return
 	// Still no item, see if we can pick up our target
 	if(istype(target, /obj/item))
-		// Make sure it's not in a container since that should be handled above.
-		if(!isturf(target.loc))
-			return
 		grip_item(target, user)
 		return
 	target.attack_ai(user)
@@ -272,7 +264,9 @@
 		/obj/item/paper,
 		/obj/item/smallDelivery,
 		/obj/item/gift,
-		/obj/item/mine_bot_upgrade
+		/obj/item/mine_bot_upgrade,
+		/obj/item/spaceflare,
+		/obj/item/orbital_dropper
 	)
 
 /obj/item/gripper/paperwork
@@ -313,6 +307,7 @@
 		/obj/item/robot_parts,
 		/obj/item/mech_component,
 		/obj/item/mecha_equipment,
+		/obj/item/rig_module,
 		/obj/item/radio/exosuit,
 		/obj/item/borg/upgrade,
 		/obj/item/flash, // to build borgs,
@@ -399,7 +394,8 @@
 		)
 
 /**
- * Used when you want to hold and put items in other things, but not able to 'use' the item
+ * Used when you want a robot to be able to hold an item, but not able to 'use' the item.
+ * E.g. picking up a stack to load it into a machine, but not building with the stack.
  */
 /obj/item/gripper/no_use
 

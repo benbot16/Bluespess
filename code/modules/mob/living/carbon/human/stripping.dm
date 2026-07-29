@@ -1,5 +1,5 @@
 /mob/living/carbon/human/proc/handle_strip(var/slot_to_strip, var/mob/living/user)
-	if(!slot_to_strip || !istype(user) || ispAI(user) || (isanimal(user) && !istype(user, /mob/living/simple_animal/hostile) ) || isrobot(user) )
+	if(!slot_to_strip || !istype(user) || ispAI(user) || (isanimal(user) && !istype(user, /mob/living/simple_animal/hostile) ))
 		return FALSE
 
 	if(user.incapacitated() || !user.Adjacent(src))
@@ -13,6 +13,13 @@
 		var/obj/item/organ/external/r_hand = H.get_organ(BP_R_HAND)
 		if(!(l_hand && l_hand.is_usable()) && !(r_hand && r_hand.is_usable()))
 			to_chat(user, SPAN_WARNING("You can't do that without working hands!"))
+			return FALSE
+
+	if(isrobot(user))
+		// If you're a robot, you need to be using a gripper to be able to strip someone.
+		var/mob/living/silicon/robot/robit = user
+		if(!istype(robit.get_active_module(), /obj/item/gripper))
+			to_chat(user, SPAN_WARNING("You can't do that without a free gripper!"))
 			return FALSE
 
 	var/obj/item/target_slot = get_equipped_item(text2num(slot_to_strip))

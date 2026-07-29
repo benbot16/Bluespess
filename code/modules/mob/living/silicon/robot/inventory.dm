@@ -8,6 +8,10 @@
 		return gripper.wrapped ? gripper.wrapped : module_active
 	return module_active
 
+/// Same as get_active_hand, but doesn't account for "held" items.
+/mob/living/silicon/robot/proc/get_active_module()
+	return module_active
+
 /mob/living/silicon/robot/proc/return_wirecutter()
 	for(var/obj/item/I in list(module_state_1, module_state_2, module_state_3))
 		if(I.tool_behaviour == TOOL_WIRECUTTER)

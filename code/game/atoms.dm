@@ -170,7 +170,7 @@
 			to_chat(user, SPAN_NOTICE("Your current mob type prevents you from doing this."))
 		return USE_FAIL_IS_MOB_SPECIAL
 
-	if((use_flags & USE_FORCE_SRC_IN_USER) && !(src in user))
+	if((use_flags & USE_FORCE_SRC_IN_USER) && !(src in user || src == user.get_active_hand()))
 		if (show_messages)
 			to_chat(user, SPAN_NOTICE("You need to be holding [src] to do that."))
 		return USE_FAIL_NOT_IN_USER

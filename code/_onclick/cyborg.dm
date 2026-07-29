@@ -6,26 +6,26 @@
 	adjacency code.
 */
 
-/mob/living/silicon/robot/ClickOn(atom/A, params)
+/mob/living/silicon/robot/ClickOn(atom/target, params)
 	if(world.time <= next_click)
 		return
 	next_click = world.time + 1
 
 	var/list/modifiers = params2list(params)
 	if(modifiers["shift"] && modifiers["ctrl"])
-		CtrlShiftClickOn(A)
+		CtrlShiftClickOn(target)
 		return
 	if(modifiers["middle"])
-		MiddleClickOn(A, params)
+		MiddleClickOn(target)
 		return
 	if(modifiers["shift"])
-		ShiftClickOn(A)
+		ShiftClickOn(target)
 		return
 	if(modifiers["alt"]) // alt and alt-gr (rightalt)
-		AltClickOn(A)
+		AltClickOn(target)
 		return
 	if(modifiers["ctrl"])
-		CtrlClickOn(A)
+		CtrlClickOn(target)
 		return
 
 	if(stat || lock_charge || weakened || stunned || paralysis)
@@ -34,12 +34,12 @@
 	if(!canClick())
 		return
 
-	face_atom(A) // change direction to face what you clicked on
+	face_atom(target) // change direction to face what you clicked on
 
 	if(ai_camera.in_camera_mode)
 		ai_camera.camera_mode_off()
 		if(is_component_functioning("camera"))
-			ai_camera.captureimage(A, usr)
+			ai_camera.captureimage(target, usr)
 		else
 			to_chat(src, SPAN_DANGER("Your camera isn't functional."))
 		return
@@ -47,43 +47,44 @@
 	var/obj/item/W = get_active_hand()
 
 	// Cyborgs have no range-checking unless there is item use
-	if(!W || isrobot(A.loc.loc))
-		A.add_hiddenprint(src)
-		A.attack_robot(src)
+	if(!W || isrobot(target.loc.loc))
+		target.add_hiddenprint(src)
+		target.attack_robot(src)
 		return
 
 	// buckled_to cannot prevent machine interlinking but stops arm movement
 	if(buckled_to)
 		return
 
-	if(W == A)
+	if(W == target)
 		W.attack_self(src)
 		return
 
-	// cyborgs are prohibited from using storage items so we can I think safely remove (A.loc in contents)
-	if(A == loc || (A in loc) || (A in contents))
+	// We're in A, A is in our turf, or A is in our contents.
+	if(target == loc || (target in loc) || (target in contents))
 		// No adjacency checks
 
-		var/resolved = W.resolve_attackby(A,src,params)
+		var/resolved = W.resolve_attackby(target,src,params)
 		if(!resolved)
-			W.afterattack(A,src,1,params)
+			W.afterattack(target,src,1,params)
 		return
 
 	if(!isturf(loc))
 		return
 
-	// cyborgs are prohibited from using storage items so we can I think safely remove (A.loc && isturf(A.loc.loc))
-	if(isturf(A) || isturf(A.loc))
-		if(A.Adjacent(src)) // see adjacent.dm
-			var/resolved = W.resolve_attackby(A, src, params)
+	// Interacting with a turf we're not on, or trying to grab things from nearby bags.
+	var/sdepth = target.storage_depth_turf()
+	if(isturf(target) || isturf(target.loc) || (sdepth != -1 && sdepth <= 1))
+		if(target.Adjacent(src)) // see adjacent.dm
+			var/resolved = W.resolve_attackby(target, src, params)
 			if(!resolved)
-				W.afterattack(A, src, 1, params)
+				W.afterattack(target, src, 1, params)
 		else
-			W.afterattack(A, src, 0, params)
+			W.afterattack(target, src, 0, params)
 	return
 
 //Middle click cycles through selected modules.
-/mob/living/silicon/robot/MiddleClickOn(var/atom/A)
+/mob/living/silicon/robot/MiddleClickOn(var/atom/target)
 	cycle_modules()
 	return
 
