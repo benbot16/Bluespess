@@ -291,7 +291,7 @@
 /mob/living/silicon/robot/canUnEquip(obj/item/I)
 	if(!I) //If there's nothing to drop, the drop is automatically successful.
 		return TRUE
-	if (I.loc != src)
+	if (I.loc != src && I.loc != module)
 		return TRUE //Allows objects inside grippers
 	return FALSE //don't allow dropping our modules
 

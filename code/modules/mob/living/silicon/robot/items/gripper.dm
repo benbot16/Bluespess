@@ -37,9 +37,13 @@
 	/// A blacklist of held items. Allows all unlisted items to be picked up if defined. Listed items/subtypes can be overridden using can_hold.
 	var/list/cant_hold
 
+	/// The item this gripper is holding.
 	var/obj/item/wrapped
 
+	/// The force of the item inside, used to reset it after dropping.
 	var/force_holder
+
+	/// An overlay representing our item on the gripper.
 	var/mutable_appearance/item_overlay
 
 /obj/item/gripper/examine(mob/user, distance, is_adjacent, infix, suffix, show_extended)
@@ -53,20 +57,23 @@
 		. += SPAN_NOTICE("It is holding \the [wrapped].")
 
 /**
- * Resets a gripper's force and icon if an item is dropped or otherwise moved from the gripper.
+ * Clears a gripper's item if it is deleted, moved, or put in something without using the other gripper procs.
  * Returns TRUE if the object is still in the gripper.
  * Returns FALSE if the object has left the gripper or doesn't exist anymore.
  */
 /obj/item/gripper/proc/grippersafety()
 	SIGNAL_HANDLER
-	// We don't have an item
-	if(!wrapped)
+	// Our item is qdel'ed or null, so make sure it got cleared out and remove the icon.
+	if(QDELETED(wrapped))
+		wrapped = null
+		force_holder = null
+		update_icon()
 		return FALSE
 	//The object left the gripper but it still exists. Maybe placed on a table
 	if(wrapped.loc != src)
 		//Reset the force and then remove our reference to it
 		wrapped.force = force_holder
-		UnregisterSignal(wrapped, COMSIG_MOVABLE_MOVED)
+		UnregisterSignal(wrapped, list(COMSIG_MOVABLE_MOVED, COMSIG_QDELETING))
 		wrapped = null
 		force_holder = null
 		update_icon()
@@ -97,7 +104,7 @@
 			else
 				target.forceMove(src)
 			wrapped = target
-			RegisterSignal(wrapped, COMSIG_MOVABLE_MOVED, PROC_REF(grippersafety))
+			RegisterSignal(wrapped, list(COMSIG_MOVABLE_MOVED, COMSIG_QDELETING), PROC_REF(grippersafety))
 			wrapped.pixel_x = 0
 			wrapped.pixel_y = 0
 			update_icon()
@@ -134,9 +141,9 @@
 
 /obj/item/gripper/CtrlClick(mob/user)
 	if(wrapped)
-		drop(get_turf(src), user)
-		return
-	to_chat(user, SPAN_WARNING("\The [src] isn't gripping anything!"))
+		. = wrapped.CtrlClick(user)
+		update_icon()
+	return ..()
 
 /obj/item/gripper/verb/drop_item()
 	set name = "Drop Item"
@@ -225,9 +232,6 @@
  	// If we already have an item, we run its afterattack
 	if(wrapped)
 		wrapped.afterattack(target, user, proximity, params)
-		grippersafety()
-		if(QDELETED(wrapped))
-			drop(get_turf(src), user, FALSE)
 		return
 	// Next bits require proximity, so bail out if we don't have it
 	if(!proximity)
